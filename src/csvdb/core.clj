@@ -14,21 +14,20 @@
 ;;
 ;; Hint: vec, map, keyword, first
 (defn table-keys [tbl]
-  (vec (map keyword (first tbl))))
+  (mapv keyword (first tbl)))
 
 ;; (key-value-pairs [:id :surname :year :group_id] ["1" "Ivanov" "1996"])
 ;; => (:id "1" :surname "Ivanov" :year "1996")
 ;;
 ;; Hint: flatten, map, list
 (defn key-value-pairs [tbl-keys tbl-record]
-  (flatten (map list tbl-keys tbl-record)))
+  (interleave tbl-keys tbl-record))
 
 ;; (data-record [:id :surname :year :group_id] ["1" "Ivanov" "1996"])
 ;; => {:surname "Ivanov", :year "1996", :id "1"}
 ;;
 ;; Hint: apply, hash-map, key-value-pairs
-(defn data-record [tbl-keys tbl-record]
-  (apply hash-map (key-value-pairs tbl-keys tbl-record)))
+(def data-record zipmap)
 
 ;; (data-table student-tbl)
 ;; => ({:surname "Ivanov", :year "1996", :id "1"}
@@ -45,7 +44,7 @@
 ;;
 ;; Hint: assoc, Integer/parseInt, get
 (defn str-field-to-int [field rec]
-  (assoc rec field (parse-int (rec field))))
+  (update-in rec [field] parse-int))
 
 (def student (->> (data-table student-tbl)
                   (map #(str-field-to-int :id %))
@@ -64,7 +63,7 @@
 ;;
 ;; Hint: if-not, filter
 (defn where* [data condition-func]
-  (if-not (nil? condition-func)
+  (if condition-func
     (filter condition-func data)
     data))
 
@@ -73,7 +72,7 @@
 ;;
 ;; Hint: if-not, take
 (defn limit* [data lim]
-  (if-not (nil? lim)
+  (if lim
     (take lim data)
     data))
 
@@ -81,7 +80,7 @@
 ;; => ({:surname "Sidorov", :year 1996, :id 3} {:surname "Petrov", :year 1997, :id 2} {:surname "Ivanov", :year 1998, :id 1})
 ;; Hint: if-not, sort-by
 (defn order-by* [data column]
-  (if-not (nil? column)
+  (if column
     (sort-by column data)
     data))
 
@@ -91,46 +90,18 @@
 ;;     {:subject "CS", :subject_id 2, :surname "Petrov", :year 1997, :student_id 2, :id 2}
 ;;     {:subject "CS", :subject_id 2, :surname "Sidorov", :year 1996, :student_id 3, :id 3}]
 ;;
-;; судя по Хинтам должно выглядеть так:
-;;
 ;; Hint: reduce, conj, merge, first, filter, get
 ;; Here column1 belongs to data1, column2 belongs to data2.
-(defn join2* [data1 column1 data2 column2]
-  (reduce
-    (fn [accumulator element1]
-        (conj
-          accumulator
-          (merge
-            (first
-              (filter #(= (element1 column1) (% column2)) data2))
-            element1)))
-    []
-    data1))
-;;
-;; и это работает (lein test выполняется корретно),
-;; но ближе к sql-join'у функция ниже:
-;;
 (defn join* [data1 column1 data2 column2]
   ;; 1. Start collecting results from empty collection.
   ;; 2. Go through each element of data1.
   ;; 3. For each element of data1 (lets call it element1) find all elements of data2 (lets call each as element2) where column1 = column2.
   ;; 4. Use function 'merge' and merge element1 with each element2.
   ;; 5. Collect merged elements.
-  (reduce
-    (fn [accumulator element1]
-        (apply conj
-          accumulator
-          (map
-            (fn [x] (merge x element1))
-            (filter (fn [element2] (= (element1 column1) (element2 column2))) data2))))
-    []
-    data1))
-;;
-;; результат выполнения будет различен:
-;;
-;; (join* student :id student-subject :student_id) => 4 rows
-;; (join2* student :id student-subject :student_id) => 3 rows
-;; просьба подсказать как правильно реализовать join*
+(for [element1 data1
+      element2 data2
+      :when (= (element1 column1) (element2 column2))]
+  (merge element2 element1)))
 
 ;; (perform-joins student-subject [[:student_id student :id] [:subject_id subject :id]])
 ;; => [{:subject "Math", :subject_id 1, :surname "Ivanov", :year 1998, :student_id 1, :id 1}
